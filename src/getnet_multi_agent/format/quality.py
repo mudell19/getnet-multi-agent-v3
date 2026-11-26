@@ -77,3 +77,15 @@ def check_answer(text: str, lang: Lang) -> list[str]:
     if any(line.count("|") >= 2 for line in text.splitlines()):
         violations.append("table")
     return violations
+
+
+_PT_AMOUNT = re.compile(r"R\$\s?(\d{1,3}(?:\.\d{3})*|\d+),(\d{2})(?!\d)")
+_EN_AMOUNT = re.compile(r"R\$\s?(\d{1,3}(?:,\d{3})*|\d+)\.(\d{2})(?!\d)")
+
+
+def localize_amounts(text: str, lang: str) -> str:
+    """Rewrite R$ amounts copied from a source in the other language's format."""
+    if lang == "en":
+        return _PT_AMOUNT.sub(lambda m: "R$ " + m.group(1).replace(".", ",") + "." + m.group(2),
+                              text)
+    return _EN_AMOUNT.sub(lambda m: "R$ " + m.group(1).replace(",", ".") + "," + m.group(2), text)

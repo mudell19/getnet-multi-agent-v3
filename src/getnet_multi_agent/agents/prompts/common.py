@@ -4,7 +4,7 @@ LANG_NAME = {"en": "English", "pt": "Brazilian Portuguese"}
 
 STYLE_RULES = """Writing rules for the merchant, who reads on a phone:
 - The first sentence answers the question directly.
-- Short: at most 120 words unless the user asked for steps. Numbered steps only for procedures.
+- Short: aim for 40 to 90 words, never more than 120 words unless the user asked for steps. Numbered steps only for procedures.
 - Plain text only: no markdown bold, no headers, no tables, no em dash or en dash.
 - One language only: {lang_name}.
 - Never talk about documents, excerpts, context, tools or the system. Naming where a live value

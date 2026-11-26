@@ -8,25 +8,26 @@ from getnet_multi_agent.agents.prompts import critic as prompt
 from getnet_multi_agent.contracts import LLM, CriticVerdict, Lang, Observation, Step, TraceCall
 from getnet_multi_agent.rag.glossary import expand
 
-CONNECTIVITY_QUERY = {
-    "en": "Getnet card machine without internet or chip signal: how to run the communication "
-          "test (teste de comunicação) and reconnect",
-    "pt": "maquininha Getnet sem internet ou sem sinal do chip: como fazer o teste de "
-          "comunicação e reconectar",
-}
+# The site's troubleshooting text is in Portuguese, so the query is too, whatever the answer
+# language; the knowledge agent still answers in the planned language.
+CONNECTIVITY_QUERY = ("Chip Algar: como insiro o chip na máquina e faço o teste de comunicação "
+                      "para a maquininha voltar a conectar")
 _DECLINE = re.compile(r"declin|recus|negad|denied", re.I)
+_CONNECT = re.compile(r"internet|connect|conect|conex|sinal|signal|offline|wi-?fi|chip|rede",
+                      re.I)
 
 
 def rules(executed: list[Observation], pending: list[Step], retried: set[str],
-          lang: Lang) -> list[tuple[str, Step, str]]:
+          lang: Lang, question: str = "") -> list[tuple[str, Step, str]]:
     """Returns (action, step, reason) with action in add | retry | drop."""
     actions: list[tuple[str, Step, str]] = []
     labels = {o.step.label() for o in executed} | {s.label() for s in pending}
     for o in executed:
         f = o.facts
+        about_decline = bool(_DECLINE.search(question)) and not _CONNECT.search(question)
         if o.step.agent == "support" and (f.get("terminal_offline") or f.get("connectivity_error")):
-            if "knowledge:rag" not in labels:
-                step = Step(agent="knowledge", source="rag", query=CONNECTIVITY_QUERY[lang],
+            if "knowledge:rag" not in labels and not about_decline:
+                step = Step(agent="knowledge", source="rag", query=CONNECTIVITY_QUERY,
                             reason="terminal offline or connectivity error")
                 actions.append(("add", step, "support observed an offline terminal or a "
                                 "connectivity error: add the site's troubleshooting steps"))

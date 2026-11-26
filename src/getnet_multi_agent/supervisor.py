@@ -28,7 +28,7 @@ from getnet_multi_agent.core.context import current
 from getnet_multi_agent.core.logging import log_event
 from getnet_multi_agent.core.settings import get_settings
 from getnet_multi_agent.format.lang import detect_language
-from getnet_multi_agent.format.quality import check_answer, fix_answer
+from getnet_multi_agent.format.quality import check_answer, fix_answer, localize_amounts
 from getnet_multi_agent.security import dlp
 from getnet_multi_agent.security.guardrails import REFUSAL_TEXTS
 
@@ -121,7 +121,7 @@ class Supervisor:
                         calls.extend(r.calls)
                         executed.append(r.observation)
                         sources.extend(x for x in r.sources if x.url not in {y.url for y in sources})
-                    actions = critic.rules(executed, pending, retried, lang)
+                    actions = critic.rules(executed, pending, retried, lang, plan.standalone)
                     for action, step, reason in actions:
                         trace.plan_revisions.append(PlanRevision(
                             iteration=iteration, action=action, step=step, reason=reason))
@@ -223,10 +223,13 @@ class Supervisor:
             note = esc.message(lang, ticket_id, partial=bool(answered))
             answer = f"{answer}\n\n{note}" if answer else note
         answer, fixed = fix_answer(answer)
+        answer = localize_amounts(answer, lang)
         remaining = check_answer(answer, lang)
         leaks = dlp.check_final(answer, principal)
         if leaks:
             answer = dlp.mask(answer)
+            for mid in dlp.other_merchant_ids(answer, principal.sub):
+                answer = re.sub(re.escape(mid), "[redacted]", answer, flags=re.I)
             trace.quality_violations.extend(f"dlp_{x}" for x in leaks)
         for v in fixed + remaining:
             metrics.QUALITY_VIOLATIONS.labels(rule=v).inc()

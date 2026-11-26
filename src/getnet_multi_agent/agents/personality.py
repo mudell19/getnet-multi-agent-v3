@@ -13,7 +13,8 @@ _URL = re.compile(r"https?://\S+")
 
 def violations(draft: str, out: str, ticket_id: str | None) -> list[str]:
     v = []
-    if not set(_NUM.findall(out)) <= set(_NUM.findall(draft)):
+    body = re.sub(r"(?m)^\s*\d{1,2}[.)]\s", "", out)  # numbered-step markers are not facts
+    if not set(_NUM.findall(body)) <= set(_NUM.findall(draft)):
         v.append("personality_new_number")
     if not set(_URL.findall(out)) <= set(_URL.findall(draft)):
         v.append("personality_new_url")

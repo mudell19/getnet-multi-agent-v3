@@ -14,13 +14,18 @@ from getnet_multi_agent.core.logging import log_event, setup_logging
 
 
 def _ingest() -> None:
+    health.STATE["ingesting"] = True
     try:
         from getnet_multi_agent.rag.ingest import ingest
         n = ingest()
         health.STATE["chunks"] = n
+        from getnet_multi_agent.api import deps
+        deps.retriever()  # warm the shared store client before traffic arrives
         log_event("ingest_done", chunks=n)
     except Exception as e:  # the service starts anyway; readiness stays false
         log_event("ingest_failed", level="error", error=f"{type(e).__name__}: {e}"[:300])
+    finally:
+        health.STATE["ingesting"] = False
 
 
 @asynccontextmanager
@@ -40,7 +45,8 @@ async def http_metrics(request: Request, call_next):
     try:
         response = await call_next(request)
     except Exception as e:
-        log_event("unhandled_error", level="error", error=type(e).__name__, path=request.url.path)
+        log_event("unhandled_error", level="error", error=f"{type(e).__name__}: {e}"[:300],
+                  path=request.url.path)
         response = JSONResponse({"detail": "internal error"}, status_code=500)
     route = request.scope.get("route")
     path = getattr(route, "path", "unmatched")

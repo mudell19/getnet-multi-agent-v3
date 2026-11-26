@@ -15,6 +15,7 @@ from getnet_multi_agent.contracts import (
     Source,
     Step,
 )
+from getnet_multi_agent.rag import glossary
 
 NO_ANSWER = "NO_ANSWER"
 _TOK = re.compile(r"\w+", re.UNICODE)
@@ -35,7 +36,14 @@ def _obs(step, status, answer, evidence, calls, t0, facts=None) -> Observation:
 
 def run_rag(llm: LLM, retriever, step: Step, lang: Lang, today: str) -> AgentResult:
     t0 = time.monotonic()
-    hits = retriever.retrieve(step.query, mode="hybrid")
+    hits = list(retriever.retrieve(step.query, mode="hybrid"))
+    products = glossary.products_in(step.query)
+    if len(products) >= 2:
+        # Comparisons also need what each product does, described on the global site.
+        names = " and ".join(" ".join(glossary.GROUPS[glossary.PRODUCTS[p]]) for p in products)
+        seen = {h.chunk.id for h in hits}
+        extra = retriever.retrieve(f"{names} POS: what each machine does, features", mode="hybrid")
+        hits += [h for h in extra if h.chunk.id not in seen][:4]
     evidence = [Evidence(kind="rag", url=h.chunk.url, title=h.chunk.title, score=round(h.score, 3),
                          excerpt=h.chunk.text) for h in hits]
     if not hits:

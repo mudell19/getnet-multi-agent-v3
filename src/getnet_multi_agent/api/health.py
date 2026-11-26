@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from getnet_multi_agent.core import metrics
 
 router = APIRouter()
-STATE = {"chunks": 0}
+STATE = {"chunks": 0, "ingesting": False}
 
 
 @router.get("/health/live")
@@ -20,11 +20,11 @@ def live() -> dict:
 def ready():
     if STATE["chunks"] <= 0:
         try:
-            from getnet_multi_agent.rag.store import Store
-            STATE["chunks"] = Store().count()
+            from getnet_multi_agent.api import deps
+            STATE["chunks"] = deps.retriever().store.count()
         except Exception:
             STATE["chunks"] = 0
-    if STATE["chunks"] > 0:
+    if STATE["chunks"] > 0 and not STATE["ingesting"]:
         return {"status": "ready", "chunks": STATE["chunks"]}
     return JSONResponse({"status": "not_ready"}, status_code=503)
 

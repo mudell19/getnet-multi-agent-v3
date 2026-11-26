@@ -58,3 +58,10 @@ def test_fr003_lite_check_parses_verdict():
 
 def test_fr032_router_refusal_reason_is_typed():
     assert Plan(refusal_reason="out_of_scope").refusal_reason == "out_of_scope"
+
+
+def test_fr004_decline_question_does_not_add_connectivity_step():
+    s = Step(agent="support", query="q")
+    obs = _obs(s, terminal_offline=True, decline=True)
+    assert critic.rules([obs], [], set(), "en", "My machine shows a transaction decline error") == []
+    assert critic.rules([obs], [], set(), "en", "My machine won't connect to the internet")

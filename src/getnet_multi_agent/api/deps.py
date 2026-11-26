@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from datetime import datetime
 
 from getnet_multi_agent.core.llm import get_llm
@@ -10,6 +11,7 @@ from getnet_multi_agent.state.db import get_db
 from getnet_multi_agent.supervisor import Supervisor
 
 _override: dict = {}
+_lock = threading.Lock()
 
 
 def llm():
@@ -24,7 +26,9 @@ def retriever():
     if "retriever" in _override:
         return _override["retriever"]
     from getnet_multi_agent.rag.retriever import get_retriever
-    return get_retriever()
+    # Chroma's client must not be created by concurrent requests (RuntimeError).
+    with _lock:
+        return get_retriever()
 
 
 def supervisor() -> Supervisor:

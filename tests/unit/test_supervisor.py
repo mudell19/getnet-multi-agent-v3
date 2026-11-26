@@ -79,3 +79,9 @@ def test_fr006_budget_exceeded_escalates(tmp_path):
     sup, cid = _sup(FakeLLM({"plan": boom}), tmp_path)
     r = sup.run("q", P, cid, "r_1", "", [], "T")
     assert r.status == "awaiting_human"
+
+
+def test_fr035_amounts_localized_to_answer_language():
+    from getnet_multi_agent.format.quality import localize_amounts
+    assert localize_amounts("costs R$ 1.250,00/month", "en") == "costs R$ 1,250.00/month"
+    assert localize_amounts("custa R$ 129.90", "pt") == "custa R$ 129,90"
