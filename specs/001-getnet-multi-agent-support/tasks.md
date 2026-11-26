@@ -332,7 +332,7 @@ integration tests use the FastAPI app with the LLM stubbed at the wrapper.
   - Owns: `evals/report.md`, `evals/retrieval_report.md`
   - Verify: runner exit code and report totals quoted in the commit message
   - FR: FR-066, FR-069, SC-001 to SC-007, SC-010
-- [ ] T035 Session notes, README final update with what exists, push; last commit message exactly
+- [X] T035 Session notes, README final update with what exists, push; last commit message exactly
   `docs: final session notes`
   - Owns: `docs/session-notes.md`, `README.md`, `docs/threat-model.md`
   - Verify: `git log -1 --format=%s` prints `docs: final session notes`; `git status` clean;
