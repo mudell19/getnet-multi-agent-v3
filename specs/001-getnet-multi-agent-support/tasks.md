@@ -325,7 +325,7 @@ integration tests use the FastAPI app with the LLM stubbed at the wrapper.
 
 ## Final wave (sequential)
 
-- [ ] T034 Clean-clone proof and reports: `git archive HEAD` into a temp dir plus `.env`,
+- [X] T034 Clean-clone proof and reports: `git archive HEAD` into a temp dir plus `.env`,
   `docker compose -p getnet-multi-agent-dev up --build --wait`, run `evals/run.py`,
   `evals/retrieval.py`, `evals/calibrate.py export`; commit `evals/report.md`,
   `evals/retrieval_report.md`
