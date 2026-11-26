@@ -1,0 +1,68 @@
+name: getnet-multi-agent
+
+services:
+  api:
+    build:
+      context: .
+      args:
+        REV: ${REV:-dev}
+    image: getnet-multi-agent:${REV:-dev}
+    env_file: .env
+    environment:
+      LLM_MODE: ${LLM_MODE:-live}
+    ports:
+      - "8000:8000"
+    volumes:
+      - state:/app/data/state
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.16.0@sha256:e04987641b57704f408e31f6373ba4138ecf27cb4a165d24aabb6c38fddd0f06
+    profiles: [observability]
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./ops/prometheus:/etc/prometheus:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      - api
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.3.1@sha256:0615ec4fbd4072004b7d86b46ded63013a74b7d6eb1119273dd89e8fa25c13cf
+    profiles: [observability]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+
+volumes:
+  state:
