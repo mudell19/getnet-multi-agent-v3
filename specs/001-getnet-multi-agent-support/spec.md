@@ -281,14 +281,13 @@ Knowledge base and retrieval
   `/en/our-solutions/in-person-payments`.
 - **FR-014**: A separate refresh command MUST crawl one level deep from each start page plus the
   `/duvidas` topic pages, same host only, sequentially, 2 s between requests, stop a host at its
-  first 403 or 429, fetch at most `RAG_MAX_PAGES` (default 150), and write the same cache format.
+  first 403 or 429, fetch at most `RAG_MAX_PAGES` (default 80), and write the same cache format.
 - **FR-015**: Extraction MUST drop script, style, nav, header and footer and text nodes repeated in
   30% or more of the pages, and MUST keep tables, product cards and FAQ questions.
 - **FR-016**: Chunking MUST split by heading and by FAQ question, each chunk carrying its page URL
   and title; fixed-size windows are not used.
 - **FR-017**: Retrieval MUST combine vector top-k (default 6) in cosine space, similarity =
-  1 - distance, threshold `RAG_MIN_SIMILARITY` (default 0.5, recalibrated in the plan with the
-  retrieval set), with lexical matching over the alias glossary.
+  1 - distance, threshold `RAG_MIN_SIMILARITY` (default 0.62), with lexical matching over the alias glossary.
 - **FR-018**: The alias glossary MUST map: Get Clássica = Get Classic; Link de Pagamento = Payment
   Link; antecipação = receivables advance; crediário, parcelas = installments; Pix; conta bancária
   = bank account = conta de recebimento = domicílio bancário; internet, connection, conexão, chip,
@@ -374,14 +373,14 @@ Human in the loop
   or LLM failure, or exceeded budget; it MUST store a checkpoint, open a ticket and return status
   `awaiting_human`, route `escalation` and `ticket_id`.
 - **FR-045**: `GET /operator/tickets?status=` MUST list tickets by status (`open`, `claimed`,
-  `resolved`) with the question, the answered parts and the escalation reason.
+  `resolved`, `rejected`) with the question, the answered parts and the escalation reason.
 - **FR-046**: `POST /operator/tickets/{id}/claim` MUST be atomic and return 409 when already
   claimed.
 - **FR-047**: `POST /operator/tickets/{id}/resolve` MUST accept action `approve` (send the ticket
   draft; 422 when none), `edit` (send the operator text) or `reject` (send a polite decline using
   the operator text as reason), only by the claiming operator (else 409); it MUST resume the run
   from its checkpoint, pass the result through Personality, append it to the same conversation and
-  mark the ticket resolved.
+  mark the ticket `resolved` (approve, edit) or `rejected` (reject).
 - **FR-048**: An audit entry (actor pseudonym, action, ticket, time) MUST be written for ticket
   creation, claim and every resolution.
 
@@ -408,8 +407,8 @@ Models and cost
 - **FR-055**: Every LLM call MUST go through one wrapper recording model, latency, prompt, output
   and thinking tokens, USD cost from the env price table (including Search queries from grounding
   metadata), with timeout (default 30 s), one retry on 429 or 5xx, preserved thought signatures
-  across tool turns, and the per-request token budget (default 60,000).
-- **FR-056**: Tool iterations per agent step MUST be limited (default 4).
+  across tool turns, and the per-request token budget (default 30,000).
+- **FR-056**: Tool iterations per agent step MUST be limited (default 3).
 
 Observability
 
@@ -489,7 +488,7 @@ Delivery and documentation
   reason.
 - **Observation**: step, status, evidence, unanswered parts, model, latency, tokens, cost.
 - **Run checkpoint**: plan, observations and draft needed to resume an escalated run.
-- **Ticket**: conversation, checkpoint, reason, status (open, claimed, resolved), claiming operator,
+- **Ticket**: conversation, checkpoint, reason, status (open, claimed, resolved, rejected), claiming operator,
   draft, resolution.
 - **Audit entry**: actor pseudonym, action, ticket, time.
 - **Knowledge chunk**: page URL, title, heading or FAQ question, text, site (BR or global).

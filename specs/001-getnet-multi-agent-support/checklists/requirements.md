@@ -43,7 +43,8 @@
 - Expected facts for the five RAG scenarios were checked against the committed snapshot in
   `data/crawl_cache/`; see Assumptions.
 - Defaults declared instead of clarification markers: message length 2000, top-k 6,
-  `RAG_MIN_SIMILARITY` 0.5 (recalibrated in plan), `RAG_MAX_PAGES` 150, token budget 60,000, LLM
-  timeout 30 s, tool iterations 4, last turns 6, token expiry 12 h, eval thresholds in FR-067.
+  `RAG_MIN_SIMILARITY` 0.62, `RAG_MAX_PAGES` 80, token budget 30,000, LLM timeout 30 s, tool
+  iterations 3, last turns 6, token expiry 12 h, eval thresholds in FR-067 (env values set in the
+  plan phase, see research.md).
 - Scoped deviation: live injection inside retrieved content is covered by an integration test
   rather than a live eval case, to keep the snapshot unpolluted (see Assumptions).
