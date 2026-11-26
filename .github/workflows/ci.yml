@@ -1,0 +1,65 @@
+name: ci
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+env:
+  PROMETHEUS_IMAGE: prom/prometheus:v3.16.0@sha256:e04987641b57704f408e31f6373ba4138ecf27cb4a165d24aabb6c38fddd0f06
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        run: pip install uv==0.13.6
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Unit and integration tests
+        run: uv run pytest -q
+
+      - name: Alert rule tests
+        run: |
+          docker run --rm -v "$PWD/ops/prometheus:/p" --entrypoint promtool "$PROMETHEUS_IMAGE" check rules /p/alerts.yml
+          docker run --rm -v "$PWD/ops/prometheus:/p" --entrypoint promtool "$PROMETHEUS_IMAGE" test rules /p/alerts.test.yml
+
+      - name: Create .env with generated secrets
+        run: |
+          cp .env.example .env
+          sed -i '/^JWT_SECRET=/d; /^PSEUDONYM_KEY=/d; /^LLM_MODE=/d' .env
+          {
+            echo "JWT_SECRET=$(openssl rand -hex 32)"
+            echo "PSEUDONYM_KEY=$(openssl rand -hex 32)"
+            echo "LLM_MODE=stub"
+          } >> .env
+
+      - name: Compose up
+        run: LLM_MODE=stub docker compose -p gma-ci up --build --wait --wait-timeout 300
+
+      - name: Smoke test /chat
+        run: |
+          TOKEN=$(docker compose -p gma-ci exec -T api getnet-multi-agent token --sub cliente1988 --role merchant)
+          curl -sS --fail-with-body -X POST http://localhost:8000/chat \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"message": "When will the money from yesterday'"'"'s sales be deposited?", "user_id": "cliente1988"}' \
+            -o response.json
+          python3 -c 'import json; r = json.load(open("response.json")); assert "status" in r and "request_id" in r, r; print(r["status"], r["request_id"])'
+
+      - name: Compose logs on failure
+        if: failure()
+        run: docker compose -p gma-ci logs --no-color
+
+      - name: Compose down
+        if: always()
+        run: docker compose -p gma-ci down -v

@@ -1,0 +1,64 @@
+name: live-eval
+
+on:
+  push:
+    tags:
+      - 'sessao-*'
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        run: pip install uv==0.13.6
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Create .env with secrets
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          cp .env.example .env
+          sed -i '/^GEMINI_API_KEY=/d; /^JWT_SECRET=/d; /^PSEUDONYM_KEY=/d' .env
+          {
+            printf 'GEMINI_API_KEY=%s\n' "$GEMINI_API_KEY"
+            printf 'JWT_SECRET=%s\n' "$(openssl rand -hex 32)"
+            printf 'PSEUDONYM_KEY=%s\n' "$(openssl rand -hex 32)"
+          } >> .env
+
+      - name: Compose up
+        id: up
+        timeout-minutes: 10
+        run: docker compose -p gma-eval up --build --wait
+
+      - name: Answer eval
+        run: uv run python evals/run.py --dataset evals/dataset.jsonl --rerun-failures
+
+      - name: Retrieval eval
+        if: always() && steps.up.outcome == 'success'
+        run: uv run python evals/retrieval.py
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: eval-reports
+          path: |
+            evals/report.md
+            evals/retrieval_report.md
+          if-no-files-found: warn
+
+      - name: Compose logs on failure
+        if: failure()
+        run: docker compose -p gma-eval logs --no-color
+
+      - name: Compose down
+        if: always()
+        run: docker compose -p gma-eval down -v
