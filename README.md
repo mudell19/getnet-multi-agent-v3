@@ -419,4 +419,21 @@ Threats, controls and residual risks: [docs/threat-model.md](docs/threat-model.m
 
 ### Not built in this session
 
-<!-- filled by the main session -->
+Declared cuts from the 60-minute session (optional tasks marked CUT-FIRST in
+`specs/001-getnet-multi-agent-support/tasks.md`):
+
+- Rate limiting per principal on `/chat`: not built; the per-request token budget, the message
+  length limit and the iteration limits bound cost per request, not request volume.
+- Operator webhook on new tickets: not built; operators poll `GET /operator/tickets`, and the
+  `GetnetTicketWaiting` alert fires when a ticket waits over 30 minutes.
+- MCP server exposing the support tools: not built.
+- Container image scanning in CI: not built.
+- Approval-gated receivables advance action: not built; the assistant explains advance but never
+  executes it.
+- Final-answer DLP checks card numbers, CPFs and other merchant ids; it does not scan for secrets.
+- Indirect injection through retrieved pages is covered by an integration test with a planted
+  chunk, not by a live eval case, to keep the committed snapshot unpolluted.
+- Judge calibration: `evals/calibrate.py export` produces the labeling sheet; human labels were
+  not collected during the session, so judge agreement is not yet measured.
+
+Live answer review of the official scenarios: [docs/answer-review.md](docs/answer-review.md).
