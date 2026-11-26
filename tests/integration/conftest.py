@@ -16,6 +16,10 @@ class _Chunk:
     title: str
     text: str
 
+    @property
+    def id(self) -> str:
+        return f"{self.url}#{hash(self.text)}"
+
 
 @dataclass
 class _Hit:

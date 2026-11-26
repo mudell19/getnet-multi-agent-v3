@@ -21,6 +21,8 @@ def _ingest() -> None:
         health.STATE["chunks"] = n
         from getnet_multi_agent.api import deps
         deps.retriever()  # warm the shared store client before traffic arrives
+        llm = deps.llm()
+        getattr(llm, "client", None)  # and the single model client
         log_event("ingest_done", chunks=n)
     except Exception as e:  # the service starts anyway; readiness stays false
         log_event("ingest_failed", level="error", error=f"{type(e).__name__}: {e}"[:300])

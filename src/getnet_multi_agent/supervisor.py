@@ -75,13 +75,15 @@ class Supervisor:
         self.db = db
 
     # --------------------------------------------------------------- steps
-    def _run_step(self, step: Step, principal: Principal, lang: Lang, today: str) -> AgentResult:
+    def _run_step(self, step: Step, principal: Principal, lang: Lang, today: str,
+                  question: str | None = None) -> AgentResult:
         try:
             if step.agent == "support":
                 return support.run(self.llm, step, principal, lang, today)
             if step.source == "web":
                 return knowledge.run_web(self.llm, step, lang, today)
-            return knowledge.run_rag(self.llm, self.retriever_factory(), step, lang, today)
+            return knowledge.run_rag(self.llm, self.retriever_factory(), step, lang, today,
+                                     question)
         except (BudgetExceeded, LLMUnavailable):
             raise
         except Exception as e:  # a tool or retrieval failure escalates that part only
@@ -117,7 +119,7 @@ class Supervisor:
                 for iteration in range(1, s.MAX_SUPERVISOR_ITERATIONS + 1):
                     while pending:
                         step = pending.pop(0)
-                        r = self._run_step(step, principal, lang, today)
+                        r = self._run_step(step, principal, lang, today, message)
                         calls.extend(r.calls)
                         executed.append(r.observation)
                         sources.extend(x for x in r.sources if x.url not in {y.url for y in sources})
@@ -165,6 +167,17 @@ class Supervisor:
         live = [o for o in executed if not o.facts.get("superseded")]
         answered = [o for o in live if o.status in ("answered", "not_found") and o.answer]
         unanswered = [o for o in live if o not in answered]
+        if escalation_reason is None and unanswered and answered:
+            # A redundant step can fail while the others already answered every part.
+            try:
+                verdict, usage = critic.check(self.llm, plan.standalone,
+                                              [o.answer for o in answered], today)
+                calls.append(usage)
+                trace.critic_notes.append(f"final check complete={verdict.complete}")
+                if verdict.complete:
+                    unanswered = []
+            except (BudgetExceeded, LLMUnavailable):
+                pass
         if escalation_reason is None and unanswered:
             escalation_reason = ("missing_grounding" if any(o.status == "ungrounded"
                                                             for o in unanswered) else "tool_failure")

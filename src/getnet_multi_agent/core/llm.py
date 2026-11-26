@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from typing import Any, Literal
 
@@ -91,12 +92,15 @@ class GeminiLLM(LLM):
 
     @property
     def client(self) -> Any:
-        if self._client is None:
-            self._client = genai.Client(
-                api_key=self.settings.GEMINI_API_KEY,
-                http_options=types.HttpOptions(timeout=LLM_TIMEOUT_S * 1000),
-            )
-        return self._client
+        # Concurrent requests must share one client: a second one would replace the first,
+        # whose garbage collection closes the HTTP client still in use by another thread.
+        with _CLIENT_LOCK:
+            if self._client is None:
+                self._client = genai.Client(
+                    api_key=self.settings.GEMINI_API_KEY,
+                    http_options=types.HttpOptions(timeout=LLM_TIMEOUT_S * 1000),
+                )
+            return self._client
 
     def _model(self, role: LLMRole) -> tuple[str, str]:
         s = self.settings
@@ -221,19 +225,22 @@ class GeminiLLM(LLM):
         return vectors
 
 
+_CLIENT_LOCK = threading.RLock()
 _LLM: LLM | None = None
+_LLM_LOCK = threading.Lock()
 
 
 def get_llm() -> LLM:
     global _LLM
-    if _LLM is None:
-        if get_settings().LLM_MODE == "stub":
-            from getnet_multi_agent.core.stub import StubLLM
+    with _LLM_LOCK:
+        if _LLM is None:
+            if get_settings().LLM_MODE == "stub":
+                from getnet_multi_agent.core.stub import StubLLM
 
-            _LLM = StubLLM()
-        else:
-            _LLM = GeminiLLM()
-    return _LLM
+                _LLM = StubLLM()
+            else:
+                _LLM = GeminiLLM()
+        return _LLM
 
 
 def reset_llm() -> None:

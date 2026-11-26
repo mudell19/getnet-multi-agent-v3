@@ -34,9 +34,15 @@ def _obs(step, status, answer, evidence, calls, t0, facts=None) -> Observation:
     )
 
 
-def run_rag(llm: LLM, retriever, step: Step, lang: Lang, today: str) -> AgentResult:
+def run_rag(llm: LLM, retriever, step: Step, lang: Lang, today: str,
+            question: str | None = None) -> AgentResult:
     t0 = time.monotonic()
     hits = list(retriever.retrieve(step.query, mode="hybrid"))
+    if question and question != step.query:
+        # The user's own words catch pages the planner's rewrite can miss.
+        seen = {h.chunk.id for h in hits}
+        hits += [h for h in retriever.retrieve(question, mode="hybrid")
+                 if h.chunk.id not in seen][:3]
     products = glossary.products_in(step.query)
     if len(products) >= 2:
         # Comparisons also need what each product does, described on the global site.

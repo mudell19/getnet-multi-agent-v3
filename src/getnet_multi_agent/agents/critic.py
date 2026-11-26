@@ -40,7 +40,8 @@ def rules(executed: list[Observation], pending: list[Step], retried: set[str],
         if o.status == "ungrounded" and o.step.agent == "knowledge" and o.step.query not in retried:
             aliases = " ".join(a for a in expand(o.step.query) if a.lower()
                                not in o.step.query.lower())
-            q = f"Getnet {o.step.query} {aliases}".strip()
+            q = (CONNECTIVITY_QUERY if _CONNECT.search(o.step.query)
+                 else f"Getnet {o.step.query} {aliases}".strip())
             retried.add(o.step.query)
             retried.add(q)
             actions.append(("retry", Step(agent="knowledge", source=o.step.source, query=q,
@@ -52,5 +53,5 @@ def rules(executed: list[Observation], pending: list[Step], retried: set[str],
 def check(llm: LLM, message: str, answers: list[str], today: str) -> tuple[CriticVerdict, TraceCall]:
     res = llm.generate(purpose="critic", role="router", system=prompt.SYSTEM.format(today=today),
                        contents=[prompt.user(message, answers)], schema=CriticVerdict)
-    v = res.parsed if isinstance(res.parsed, CriticVerdict) else CriticVerdict(complete=True)
+    v = res.parsed if isinstance(res.parsed, CriticVerdict) else CriticVerdict(complete=False)
     return v, res.usage

@@ -14,7 +14,8 @@ then the Brazilian monthly prices if the excerpts give them.
 Excerpts from site.getnet.com.br are the Brazilian source. Excerpts from www.getnet.net are the
 global site: use them only to describe what a product does, never as confirmed Brazilian prices
 or conditions.
-If the excerpts do not answer the question, reply exactly NO_ANSWER.
+If the excerpts partly answer, answer with what they say. Reply exactly NO_ANSWER only when no
+excerpt is relevant to the question.
 Refusal: never answer from memory or guess.
 {untrusted}"""
 
