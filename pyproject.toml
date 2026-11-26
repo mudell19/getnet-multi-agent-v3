@@ -1,17 +1,45 @@
 [project]
 name = "getnet-multi-agent"
 version = "0.1.0"
-description = "Add your description here"
+description = "Multi-agent merchant support for Getnet: router, knowledge, support, escalation and personality"
 readme = "README.md"
 authors = [
     { name = "Murilo Dell", email = "murilo.dell13@gmail.com" }
 ]
-requires-python = ">=3.12"
-dependencies = []
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi==0.162.0",
+    "uvicorn",
+    "pydantic",
+    "pydantic-settings",
+    "google-genai==2.34.0",
+    "chromadb==1.5.9",
+    "beautifulsoup4",
+    "lxml",
+    "httpx",
+    "pyjwt==2.15.1",
+    "prometheus-client==0.26.0",
+]
 
 [project.scripts]
-getnet-multi-agent = "getnet_multi_agent:main"
+getnet-multi-agent = "getnet_multi_agent.cli:main"
+
+[dependency-groups]
+dev = ["pytest", "ruff"]
 
 [build-system]
 requires = ["uv_build>=0.13.6,<0.14.0"]
 build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = ["E501"]

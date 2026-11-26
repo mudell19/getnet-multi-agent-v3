@@ -8,3 +8,4 @@ data/chroma/
 *.db
 *.sqlite
 *.sqlite3
+evals/labels.csv
