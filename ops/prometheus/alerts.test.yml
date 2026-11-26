@@ -1,0 +1,110 @@
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  # GetnetHighErrorRate: 10 of 110 responses per minute are 5xx (about 9%).
+  - interval: 1m
+    input_series:
+      - series: 'getnet_http_responses_total{path="/chat",code="200"}'
+        values: '0+100x20'
+      - series: 'getnet_http_responses_total{path="/chat",code="500"}'
+        values: '0+10x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: GetnetHighErrorRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "5xx responses above 5% of traffic over 5 minutes"
+
+  # GetnetHighErrorRate stays silent at about 1% 5xx.
+  - interval: 1m
+    input_series:
+      - series: 'getnet_http_responses_total{path="/chat",code="200"}'
+        values: '0+100x20'
+      - series: 'getnet_http_responses_total{path="/chat",code="500"}'
+        values: '0+1x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: GetnetHighErrorRate
+        exp_alerts: []
+
+  # GetnetHighLatencyP95: every request lands between 20 s and 30 s.
+  - interval: 1m
+    input_series:
+      - series: 'getnet_request_latency_seconds_bucket{le="1"}'
+        values: '0x30'
+      - series: 'getnet_request_latency_seconds_bucket{le="20"}'
+        values: '0x30'
+      - series: 'getnet_request_latency_seconds_bucket{le="30"}'
+        values: '0+10x30'
+      - series: 'getnet_request_latency_seconds_bucket{le="+Inf"}'
+        values: '0+10x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: GetnetHighLatencyP95
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "p95 request latency above 20 s for 10 minutes"
+
+  # GetnetHighLatencyP95 stays silent when every request is under 1 s.
+  - interval: 1m
+    input_series:
+      - series: 'getnet_request_latency_seconds_bucket{le="1"}'
+        values: '0+10x30'
+      - series: 'getnet_request_latency_seconds_bucket{le="20"}'
+        values: '0+10x30'
+      - series: 'getnet_request_latency_seconds_bucket{le="30"}'
+        values: '0+10x30'
+      - series: 'getnet_request_latency_seconds_bucket{le="+Inf"}'
+        values: '0+10x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: GetnetHighLatencyP95
+        exp_alerts: []
+
+  # GetnetHighCostPerHour: US$ 0.05 per minute is US$ 3 per hour.
+  - interval: 1m
+    input_series:
+      - series: 'getnet_llm_cost_usd_total{model="gemini-flash"}'
+        values: '0+0.05x90'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: GetnetHighCostPerHour
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "LLM cost above US$ 1 in the last hour"
+
+  # GetnetHighCostPerHour stays silent at US$ 0.06 per hour.
+  - interval: 1m
+    input_series:
+      - series: 'getnet_llm_cost_usd_total{model="gemini-flash"}'
+        values: '0+0.001x90'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: GetnetHighCostPerHour
+        exp_alerts: []
+
+  # GetnetTicketWaiting: oldest ticket ages one minute per minute; silent at 20 min, firing at 40 min.
+  - interval: 1m
+    input_series:
+      - series: 'getnet_ticket_oldest_age_seconds'
+        values: '0+60x60'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: GetnetTicketWaiting
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: GetnetTicketWaiting
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Oldest open ticket waiting more than 30 minutes"
