@@ -25,7 +25,8 @@ cp .env.example .env
 #   PSEUDONYM_KEY=<output of: openssl rand -hex 32>
 ```
 
-Build and start (the API becomes ready once the knowledge base is ingested):
+Build and start. `--wait` returns when the healthcheck on `/health/ready` passes, which happens
+only after ingestion finishes (start period 180 s):
 
 ```bash
 docker compose up --build --wait
@@ -177,8 +178,10 @@ fake at one interface (`contracts.LLM`).
    in the output appears in the draft and that the ticket id is kept; on violation or failure the
    draft is returned and the violation is counted.
 8. **Code finishing.** The escalation note with the ticket id is appended, answer-quality fixes
-   run (em and en dashes replaced, markdown bold removed, ISO dates and language mismatch
-   flagged), the final DLP check masks any card number, CPF or other merchant id, sources are
+   run (em and en dashes replaced, markdown bold removed, amounts and units copied from Brazilian
+   pages localized to the answer language by `localize_amounts`, ISO dates and language mismatch
+   flagged), the final DLP check masks card numbers and CPFs and replaces other merchant ids with
+   `[redacted]`, sources are
    attached as a response field, and when a source is on `www.getnet.net` one sentence says the
    global site may differ for Brazil.
 
@@ -230,7 +233,9 @@ One `POST /chat` request end to end (`api/chat.py`):
    as one term. Score = 0.6 vector + 0.4 lexical + 0.1 boost for chunks stating a rule
    ("precisa", "até", "must", "required"). A message naming two or more products runs one
    sub-query per product with its aliases and merges the results, so a comparison retrieves pages
-   for both. Repeated FAQ texts are removed. `GET /operator/retrieval?q=&mode=hybrid|vector`
+   for both. Knowledge steps search with the planner's standalone rewrite and also with the
+   user's own words, and a comparison of two or more products also retrieves the global feature
+   page. Repeated FAQ texts are removed. `GET /operator/retrieval?q=&mode=hybrid|vector`
    exposes the ranking for evaluation.
 4. **Generation** (`agents/knowledge.py`). The flash model answers only from chunks delimited as
    `<data>`, or returns `NO_ANSWER` (ungrounded, then retry or escalation). Citations are the
@@ -321,11 +326,19 @@ audit entry (operator pseudonym, action, ticket, time).
   embeddings.
 - **Integration tests** (`tests/integration/`): the real FastAPI app through `TestClient` with a
   temporary database, the LLM stubbed at the wrapper and a fake retriever; covers auth codes,
-  refusals with no LLM call, conversation ownership and follow-ups, the offline-terminal replan,
-  escalation with claim and resolve, LLM failure escalating with valid JSON, JSON validation
-  errors, retrieval, health and metrics.
+  refusals with no LLM call, conversation ownership and follow-ups, a conversation surviving a
+  restart (new `Database` on the same file), the offline-terminal replan and a decline question
+  that adds no connectivity step, escalation with claim and approve, edit and reject resolutions,
+  LLM failure escalating with valid JSON, JSON validation errors, amounts localized to the answer
+  language, retrieval, health and metrics. A planted-chunk test
+  (`tests/integration/test_user_stories.py::test_fr028_planted_chunk_injection_stays_delimited_data`)
+  checks that injected page text stays inside `<data>` in the knowledge prompt, that the system
+  prompt says never to follow such instructions, and that another merchant's id never reaches the
+  answer.
 - **Traceability**: every functional requirement has a test with its ID in the name
   (`test_fr029_...`).
+- **Live answer review**: the ten official scenarios, five Portuguese questions and the compound
+  case reviewed against the live model in [docs/answer-review.md](docs/answer-review.md).
 - **CI smoke**: the container starts in stub mode and a real `/chat` request must return JSON with
   `status` and `request_id`.
 
@@ -399,7 +412,9 @@ docker compose --profile observability up -d
 Identity is enforced by code on every route except health and metrics; tools read only the
 authenticated merchant's data; card numbers, CPFs, other merchants' ids and known injection
 patterns are refused before any LLM call; retrieved text and tool results are delimited as
-untrusted data; the final answer passes a DLP check; logs and stored turns are masked; secrets
+untrusted data (verified by the planted-chunk integration test); the final answer passes a DLP
+check that masks card numbers and CPFs and redacts other merchant ids; logs and stored turns are
+masked; secrets
 come only from `.env`; the image runs as a non-root user with the base image pinned by digest.
 Threats, controls and residual risks: [docs/threat-model.md](docs/threat-model.md).
 
@@ -415,6 +430,9 @@ Threats, controls and residual risks: [docs/threat-model.md](docs/threat-model.m
 - **Snapshot knowledge base.** Answers come from the crawl in `data/crawl_cache/` (November
   2026) and go stale until `refresh` runs.
 - **Google Search grounding** requires a paid-tier Gemini key.
+- **Concurrency** relies on one shared `google-genai` client and one shared Chroma client per
+  process, created under locks and warmed at startup after ingestion; there is a single API
+  process per node.
 - **Simulated merchant data** in `data/merchants.json`, with dates relative to the current day.
 
 ### Not built in this session

@@ -27,9 +27,9 @@ to [specs/001-getnet-multi-agent-support/spec.md](../specs/001-getnet-multi-agen
 
 | Threat | Controls | Where |
 |---|---|---|
-| Cross-merchant data leakage | Tools take the merchant id from the authenticated principal only, never from model arguments; a message naming another merchant id is refused by code (`other_merchant`) before any LLM call, and the Router refuses indirect requests ("the merchant next door"); `user_id` must equal the token subject (403); conversations are owned by the HMAC pseudonym and another principal's id returns 404; the final DLP check masks other merchant ids in the answer | `agents/support.py`, `agents/tools.py`, `security/guardrails.py`, `security/dlp.py`, `api/chat.py`, `api/conversations.py` |
+| Cross-merchant data leakage | Tools take the merchant id from the authenticated principal only, never from model arguments; a message naming another merchant id is refused by code (`other_merchant`) before any LLM call, and the Router refuses indirect requests ("the merchant next door"); `user_id` must equal the token subject (403); conversations are owned by the HMAC pseudonym and another principal's id returns 404; the final DLP check replaces other merchant ids in the answer with `[redacted]` | `agents/support.py`, `agents/tools.py`, `security/guardrails.py`, `security/dlp.py`, `api/chat.py`, `api/conversations.py` |
 | Direct prompt injection | Known injection patterns in English and Portuguese refused by code before any LLM call (`prompt_injection`); the Router plans a refusal for injections the patterns miss; every prompt states role, scope and refusal rules | `security/guardrails.py`, `agents/prompts/` |
-| Indirect injection in retrieved content and tool results | Retrieved chunks and tool results are wrapped in `<data>` tags; prompts say the content is untrusted, never to follow or repeat instructions inside it; Personality output is checked by code for new numbers and URLs; the final answer passes DLP. Tested by `test_fr028_untrusted_data_is_delimited`, `test_fr033_check_final` and the tool-result injection eval case (instruction-like field in cliente2000's data) | `agents/prompts/common.py`, `agents/personality.py`, `security/dlp.py` |
+| Indirect injection in retrieved content and tool results | Retrieved chunks and tool results are wrapped in `<data>` tags; prompts say the content is untrusted, never to follow or repeat instructions inside it; Personality output is checked by code for new numbers and URLs; the final answer passes DLP. Tested by `test_fr028_untrusted_data_is_delimited`, `test_fr033_check_final`, the integration test `test_fr028_planted_chunk_injection_stays_delimited_data` (a planted chunk with injected instructions stays inside `<data>` in the knowledge prompt, the system prompt says never to follow it, and another merchant's id never reaches the answer) and the tool-result injection eval case (instruction-like field in cliente2000's data) | `agents/prompts/common.py`, `agents/personality.py`, `security/dlp.py` |
 | Sensitive data (card numbers, CPF) | Luhn-valid card numbers (13 to 19 digits) and valid CPFs refused by code (`sensitive_data`) with no LLM call; values masked before reaching logs and the database (user turns, assistant turns, operator text, summaries); log fields masked again by the logger; final answer DLP check | `security/dlp.py`, `security/guardrails.py`, `core/logging.py`, `api/chat.py`, `api/operator.py` |
 | Token misuse | HS256 with required `iss`, `aud`, `exp`, `sub` and `role`; 401 on missing or invalid tokens; role checked per route (merchant on `/chat` and `/conversations`, operator on `/operator`, else 403); tokens issued only by the CLI inside the container, no endpoint issues tokens; default expiry 12 h | `security/auth.py`, `cli.py` |
 | Cost abuse | Per-request token budget (`REQUEST_TOKEN_BUDGET`) checked before each LLM call, escalating when spent; message length limit (`MAX_MESSAGE_CHARS`, 422); `MAX_TOOL_ITERATIONS` and `MAX_SUPERVISOR_ITERATIONS`; code refusals cost no tokens; cost per call in the trace and in `getnet_llm_cost_usd_total`; alert `GetnetHighCostPerHour` above US$ 1 per hour | `core/context.py`, `core/llm.py`, `supervisor.py`, `ops/prometheus/alerts.yml` |
@@ -42,12 +42,14 @@ to [specs/001-getnet-multi-agent-support/spec.md](../specs/001-getnet-multi-agen
 
 - **Novel injection wording.** Pattern checks catch known phrasings only; the Router and the
   `<data>` delimiting reduce but do not eliminate injections the model may follow.
-- **No live test of a poisoned page.** Indirect injection through retrieved content is covered by
-  prompt and DLP unit tests, not by a planted page in the live snapshot.
+- **No live eval with a poisoned page.** Indirect injection through retrieved content is covered
+  by unit tests and a planted-chunk integration test only; no live eval case uses a poisoned page
+  in the snapshot, to keep the committed snapshot unpolluted.
 - **Shared-secret tokens.** Anyone holding `JWT_SECRET` can mint any token; there is no
-  revocation list and no rate limiting per principal or IP.
-- **DLP scope.** The final check covers card numbers, CPFs and known merchant ids; other personal
-  data (names, phone numbers, addresses) is not detected.
+  revocation list and no rate limiting per principal or IP (declared as not built in the README).
+- **DLP scope.** The final check masks card numbers and CPFs and redacts known merchant ids; it
+  does not scan for secrets, and other personal data (names, phone numbers, addresses) is not
+  detected.
 - **Paraphrased hallucination.** The Personality check verifies numbers, URLs and the ticket id,
   not the meaning of reworded sentences; the eval judge measures groundedness after the fact.
 - **Model provider.** Message content (masked) is sent to the Gemini API.
