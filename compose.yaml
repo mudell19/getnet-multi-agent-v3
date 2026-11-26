@@ -15,10 +15,10 @@ services:
     volumes:
       - state:/app/data/state
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=4)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"]
       interval: 10s
       timeout: 5s
-      start_period: 30s
+      start_period: 180s
       retries: 12
     logging:
       driver: json-file
